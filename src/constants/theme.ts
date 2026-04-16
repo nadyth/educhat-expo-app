@@ -1,0 +1,53 @@
+export const theme = {
+  colors: {
+    primary: '#1E40AF',
+    primaryLight: '#3B82F6',
+    primaryDark: '#1E3A8A',
+    accent: '#F59E0B',
+    accentLight: '#FCD34D',
+    background: '#F8FAFC',
+    surface: '#FFFFFF',
+    surfaceAlt: '#F1F5F9',
+    userBubble: '#1E40AF',
+    aiBubble: '#FFFBEB',
+    aiBubbleText: '#1E293B',
+    text: '#0F172A',
+    textSecondary: '#64748B',
+    textOnPrimary: '#FFFFFF',
+    success: '#10B981',
+    error: '#EF4444',
+    warning: '#F59E0B',
+    gradientStart: '#1E3A8A',
+    gradientEnd: '#7C3AED',
+    cardBorder: '#E2E8F0',
+  },
+  spacing: {
+    xs: 4,
+    sm: 8,
+    md: 16,
+    lg: 24,
+    xl: 32,
+    xxl: 48,
+  },
+  borderRadius: {
+    sm: 8,
+    md: 12,
+    lg: 16,
+    xl: 24,
+    full: 9999,
+  },
+  typography: {
+    h1: { fontSize: 28, fontWeight: '700' as const, lineHeight: 34 },
+    h2: { fontSize: 22, fontWeight: '600' as const, lineHeight: 28 },
+    h3: { fontSize: 18, fontWeight: '600' as const, lineHeight: 24 },
+    body: { fontSize: 16, fontWeight: '400' as const, lineHeight: 22 },
+    caption: { fontSize: 12, fontWeight: '400' as const, lineHeight: 16 },
+  },
+  animation: {
+    spring: { damping: 15, stiffness: 150 },
+    timing: { duration: 300 },
+    entrance: { duration: 500 },
+  },
+} as const;
+
+export type Theme = typeof theme;

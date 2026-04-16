@@ -1,98 +1,125 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, FlatList, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useChat } from '../../src/contexts/ChatContext';
+import { useOllamaModels } from '../../src/hooks/useOllamaModels';
+import { ChatBubble } from '../../src/components/chat/ChatBubble';
+import { ChatInput } from '../../src/components/chat/ChatInput';
+import { TypingIndicator } from '../../src/components/chat/TypingIndicator';
+import { ModelPicker, ModelPickerTrigger } from '../../src/components/chat/ModelPicker';
+import { EmptyState } from '../../src/components/shared/EmptyState';
+import { theme } from '../../src/constants/theme';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+export default function ChatScreen() {
+  const {
+    messages,
+    isStreaming,
+    currentModel,
+    error,
+    tokensPerSecond,
+    sendMessage,
+    setModel,
+    clearChat,
+    stopGeneration,
+  } = useChat();
+  const { models } = useOllamaModels();
+  const [showModelPicker, setShowModelPicker] = useState(false);
+  const flatListRef = useRef<FlatList>(null);
 
-export default function HomeScreen() {
+  useEffect(() => {
+    // Scroll to bottom on new messages
+    if (messages.length > 0) {
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    }
+  }, [messages.length, messages[messages.length - 1]?.text]);
+
+  const renderMessage = ({ item }: { item: typeof messages[number] }) => (
+    <ChatBubble
+      text={item.text}
+      isUser={item.isUser}
+      isStreaming={isStreaming && !item.isUser && item === messages[messages.length - 1] && item.text !== ''}
+      modelName={item.isUser ? undefined : item.model}
+      tokensPerSecond={
+        !item.isUser && item === messages[messages.length - 1] && !isStreaming
+          ? tokensPerSecond
+          : undefined
+      }
+    />
+  );
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={90}
+      >
+        {messages.length === 0 && !isStreaming ? (
+          <EmptyState onSuggestionPress={sendMessage} />
+        ) : (
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            renderItem={renderMessage}
+            keyExtractor={(item) => item.id}
+            style={styles.messageList}
+            contentContainerStyle={styles.messageListContent}
+            showsVerticalScrollIndicator={false}
+            ListFooterComponent={
+              isStreaming && messages[messages.length - 1]?.text === '' ? (
+                <TypingIndicator />
+              ) : null
+            }
+          />
+        )}
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+        {error && (
+          <View style={styles.errorBar}>
+            {/* Error displayed in input area */}
+          </View>
+        )}
+
+        <View style={styles.inputArea}>
+          <ModelPickerTrigger
+            currentModel={currentModel}
+            onPress={() => setShowModelPicker(true)}
+          />
+          <ChatInput
+            onSend={sendMessage}
+            onStop={stopGeneration}
+            isStreaming={isStreaming}
+          />
+        </View>
+
+        <ModelPicker
+          models={models}
+          currentModel={currentModel}
+          onSelect={setModel}
+          visible={showModelPicker}
+          onClose={() => setShowModelPicker(false)}
+        />
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  messageList: {
+    flex: 1,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  messageListContent: {
+    paddingVertical: theme.spacing.md,
+  },
+  errorBar: {
+    backgroundColor: theme.colors.error + '15',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+  },
+  inputArea: {
+    gap: theme.spacing.xs,
   },
 });
