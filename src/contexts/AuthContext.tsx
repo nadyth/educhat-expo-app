@@ -22,7 +22,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || Constants.expoConfig?.extra?.googleWebClientId || '';
 const ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || '';
-const IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '';
+const IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '597120914452-2kkuuts4k4330pvm9b2t0vj8ii2qaa59.apps.googleusercontent.com';
 
 // --- Web: Google Identity Services (popup, no redirect URI needed) ---
 
@@ -108,13 +108,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (Platform.OS !== 'web') {
       getNativeGoogleSignin().then(({ GoogleSignin }) => {
-        console.log('Configuring Google Sign-In with Web Client ID:', WEB_CLIENT_ID);
-        GoogleSignin.configure({
+        console.log('Google Sign-In Configuration:');
+        console.log('  WEB_CLIENT_ID:', WEB_CLIENT_ID);
+        console.log('  IOS_CLIENT_ID:', IOS_CLIENT_ID);
+        console.log('  Platform:', Platform.OS);
+        
+        const config = {
           webClientId: WEB_CLIENT_ID,
           iosClientId: IOS_CLIENT_ID || undefined,
           offlineAccess: true,
           scopes: ['profile', 'email'],
-        });
+        };
+        
+        console.log('  Config object being passed:', JSON.stringify(config, null, 2));
+        
+        GoogleSignin.configure(config);
       }).catch((err) => {
         console.error('Failed to configure Google Sign-In:', err);
       });

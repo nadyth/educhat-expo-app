@@ -52,6 +52,7 @@
     ],
     "extra": {
       "googleWebClientId": "597120914452-len0a0qk1eb24q2jsfc9r8tkdr0t49ir.apps.googleusercontent.com",
+      "googleIosClientId": "597120914452-2kkuuts4k4330pvm9b2t0vj8ii2qaa59.apps.googleusercontent.com",
       "router": {}
     },
     "experiments": {
