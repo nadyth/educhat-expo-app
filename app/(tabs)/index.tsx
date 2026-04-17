@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, FlatList, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, FlatList, StyleSheet, Platform, Keyboard } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { useChat } from '../../src/contexts/ChatContext';
 import { useOllamaModels } from '../../src/hooks/useOllamaModels';
 import { ChatBubble } from '../../src/components/chat/ChatBubble';
@@ -11,6 +13,7 @@ import { EmptyState } from '../../src/components/shared/EmptyState';
 import { theme } from '../../src/constants/theme';
 
 export default function ChatScreen() {
+  const headerHeight = useHeaderHeight();
   const {
     messages,
     isStreaming,
@@ -33,6 +36,18 @@ export default function ChatScreen() {
     }
   }, [messages.length, messages[messages.length - 1]?.text]);
 
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => {
+        if (messages.length > 0) {
+          setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+        }
+      }
+    );
+    return () => showSubscription.remove();
+  }, [messages.length]);
+
   const renderMessage = ({ item }: { item: typeof messages[number] }) => (
     <ChatBubble
       text={item.text}
@@ -51,8 +66,8 @@ export default function ChatScreen() {
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={90}
+        behavior="padding"
+        keyboardVerticalOffset={headerHeight}
       >
         {messages.length === 0 && !isStreaming ? (
           <EmptyState onSuggestionPress={sendMessage} />

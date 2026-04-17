@@ -14,12 +14,13 @@ import {
   Trash2,
 } from 'lucide-react-native';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { Image } from 'react-native';
 import { useChat } from '../../src/contexts/ChatContext';
 import { EDUCATION_PROMPTS, PromptType } from '../../src/utils/educationPrompts';
 import { theme } from '../../src/constants/theme';
 
 export default function ProfileScreen() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, refreshUser } = useAuth();
   const { currentModel, promptType, setSystemPrompt, totalMessagesSent, modelsUsed, clearChat } = useChat();
 
   const promptOptions: { key: PromptType; label: string; icon: string }[] = [
@@ -42,7 +43,11 @@ export default function ProfileScreen() {
         >
           <Animated.View entering={FadeInDown.duration(600)} style={styles.headerContent}>
             <View style={styles.avatar}>
-              <GraduationCap size={40} color={theme.colors.primary} />
+              {user?.photo ? (
+                <Image source={{ uri: user.photo }} style={styles.avatarImage} />
+              ) : (
+                <GraduationCap size={40} color={theme.colors.primary} />
+              )}
             </View>
             <Text style={styles.userName}>{user?.name || 'Student'}</Text>
             <Text style={styles.userEmail}>{user?.email || 'Loading...'}</Text>
@@ -117,6 +122,14 @@ export default function ProfileScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Settings</Text>
 
+          <TouchableOpacity style={styles.settingRow} onPress={refreshUser}>
+            <View style={styles.settingLeft}>
+              <GraduationCap size={18} color={theme.colors.primary} />
+              <Text style={styles.settingText}>Refresh Profile</Text>
+            </View>
+            <ChevronRight size={16} color={theme.colors.textSecondary} />
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.settingRow} onPress={clearChat}>
             <View style={styles.settingLeft}>
               <Trash2 size={18} color={theme.colors.error} />
@@ -164,6 +177,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 6,
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
   },
   userName: {
     ...theme.typography.h2,

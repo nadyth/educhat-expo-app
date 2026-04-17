@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Animated, { FadeInDown, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,12 +10,8 @@ import { theme } from '../../src/constants/theme';
 
 export default function LoginScreen() {
   const { signIn, isAuthenticated, isLoading } = useAuth();
+  const [loginError, setLoginError] = useState<string | null>(null);
   const floatY = useSharedValue(0);
-
-  // If already authenticated, redirect to main app
-  if (isAuthenticated) {
-    return <Redirect href="/" />;
-  }
 
   useEffect(() => {
     floatY.value = withRepeat(withTiming(-15, { duration: 2500 }), -1, true);
@@ -24,6 +20,11 @@ export default function LoginScreen() {
   const floatingStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: floatY.value }],
   }));
+
+  // If already authenticated, redirect to main app
+  if (isAuthenticated) {
+    return <Redirect href="/" />;
+  }
 
   return (
     <LinearGradient
@@ -65,12 +66,16 @@ export default function LoginScreen() {
         </Animated.Text>
 
         <Animated.View entering={FadeInDown.delay(600).duration(800)} style={styles.buttonContainer}>
-          <GoogleSignInButton onPress={signIn} isLoading={isLoading} />
+          <GoogleSignInButton onPress={async () => { setLoginError(null); try { await signIn(); } catch (e: any) { setLoginError(e.message || 'Sign-in failed. Please try again.'); } }} isLoading={isLoading} />
         </Animated.View>
 
         <Animated.Text entering={FadeInDown.delay(700).duration(800)} style={styles.terms}>
           By signing in, you agree to our Terms of Service
         </Animated.Text>
+
+        {loginError && (
+          <Text style={styles.errorText}>{loginError}</Text>
+        )}
       </View>
     </LinearGradient>
   );
@@ -147,5 +152,11 @@ const styles = StyleSheet.create({
   terms: {
     ...theme.typography.caption,
     color: theme.colors.textOnPrimary + '80',
+  },
+  errorText: {
+    ...theme.typography.caption,
+    color: theme.colors.error,
+    textAlign: 'center',
+    marginTop: theme.spacing.sm,
   },
 });

@@ -2,11 +2,20 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { User, AuthState } from '../types/auth';
-import { saveAuthData, loadAuthData, clearAuthData } from '../services/auth';
+import {
+  saveAuthData,
+  loadAuthData,
+  clearAuthData,
+  loginWithGoogle,
+  fetchCurrentUser,
+  updateStoredAccessToken,
+} from '../services/auth';
+import { setOnAuthFailure, setOnTokenRefreshed, setTokenGetters } from '../services/api';
 
 interface AuthContextType extends AuthState {
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,7 +41,7 @@ function loadGoogleGSI(): Promise<void> {
   });
 }
 
-function signInWithGIS(): Promise<{ idToken: string; user: User }> {
+function signInWithGIS(): Promise<{ idToken: string }> {
   return new Promise(async (resolve, reject) => {
     await loadGoogleGSI();
 
@@ -40,28 +49,7 @@ function signInWithGIS(): Promise<{ idToken: string; user: User }> {
       client_id: WEB_CLIENT_ID,
       callback: (response: any) => {
         if (response.credential) {
-          try {
-            const base64Url = response.credential.split('.')[1];
-            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-            const jsonPayload = decodeURIComponent(
-              atob(base64)
-                .split('')
-                .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-                .join('')
-            );
-            const payload = JSON.parse(jsonPayload);
-
-            const user: User = {
-              id: payload.sub,
-              name: payload.name || 'Student',
-              email: payload.email,
-              photo: payload.picture,
-            };
-
-            resolve({ idToken: response.credential, user });
-          } catch (e) {
-            reject(e);
-          }
+          resolve({ idToken: response.credential });
         } else {
           reject(new Error('No credential returned'));
         }
@@ -92,12 +80,29 @@ async function getNativeGoogleSignin() {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({
     user: null,
-    token: null,
+    accessToken: null,
+    refreshToken: null,
     isAuthenticated: false,
     isLoading: true,
   });
 
   const hasRestoredRef = useRef(false);
+
+  // Wire up token getters for the API client
+  const accessTokenRef = useRef<string | null>(null);
+  const refreshTokenRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    accessTokenRef.current = state.accessToken;
+    refreshTokenRef.current = state.refreshToken;
+  }, [state.accessToken, state.refreshToken]);
+
+  useEffect(() => {
+    setTokenGetters(
+      () => accessTokenRef.current,
+      () => refreshTokenRef.current,
+    );
+  }, []);
 
   // Configure native Google Sign-In (lazy)
   useEffect(() => {
@@ -116,6 +121,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const handleAuthFailure = useCallback(async () => {
+    await clearAuthData();
+    setState({
+      user: null,
+      accessToken: null,
+      refreshToken: null,
+      isAuthenticated: false,
+      isLoading: false,
+    });
+  }, []);
+
+  const handleTokenRefreshed = useCallback((newAccessToken: string) => {
+    setState(prev => ({ ...prev, accessToken: newAccessToken }));
+  }, []);
+
+  useEffect(() => {
+    setOnAuthFailure(handleAuthFailure);
+    setOnTokenRefreshed(handleTokenRefreshed);
+  }, [handleAuthFailure, handleTokenRefreshed]);
+
   // Load saved session on mount — only once
   useEffect(() => {
     if (hasRestoredRef.current) return;
@@ -127,7 +152,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (data) {
           setState({
             user: data.user,
-            token: data.token,
+            accessToken: data.accessToken,
+            refreshToken: data.refreshToken,
             isAuthenticated: true,
             isLoading: false,
           });
@@ -144,10 +170,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setState(prev => ({ ...prev, isLoading: true }));
 
+      let idToken: string;
+
       if (Platform.OS === 'web') {
-        const { idToken, user } = await signInWithGIS();
-        await saveAuthData(idToken, user);
-        setState({ user, token: idToken, isAuthenticated: true, isLoading: false });
+        const result = await signInWithGIS();
+        idToken = result.idToken;
       } else {
         const { GoogleSignin, isSuccessResponse } = await getNativeGoogleSignin();
         await GoogleSignin.hasPlayServices();
@@ -158,21 +185,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        const googleUser = response.data;
-        const user: User = {
-          id: googleUser.user.id,
-          name: googleUser.user.name ?? 'Student',
-          email: googleUser.user.email,
-          photo: googleUser.user.photo ?? undefined,
-        };
-
-        const token = googleUser.idToken ?? '';
-        await saveAuthData(token, user);
-        setState({ user, token, isAuthenticated: true, isLoading: false });
+        idToken = response.data.idToken ?? '';
       }
+
+      // Send the Google idToken to our backend
+      const authResponse = await loginWithGoogle(idToken);
+
+      const user: User = {
+        id: authResponse.user.id,
+        name: authResponse.user.name,
+        email: authResponse.user.email,
+        photo: authResponse.user.picture_url || undefined,
+      };
+
+      await saveAuthData(authResponse.access_token, authResponse.refresh_token, user);
+      setState({
+        user,
+        accessToken: authResponse.access_token,
+        refreshToken: authResponse.refresh_token,
+        isAuthenticated: true,
+        isLoading: false,
+      });
     } catch (error: any) {
       console.error('Sign-in error:', error);
       setState(prev => ({ ...prev, isLoading: false }));
+      throw error; // Re-throw so the UI can show the error
     }
   }, []);
 
@@ -186,14 +223,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await clearAuthData();
     setState({
       user: null,
-      token: null,
+      accessToken: null,
+      refreshToken: null,
       isAuthenticated: false,
       isLoading: false,
     });
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    if (!state.accessToken) return;
+    try {
+      const updatedUser = await fetchCurrentUser(state.accessToken);
+      await saveAuthData(state.accessToken, state.refreshToken!, updatedUser);
+      setState(prev => ({ ...prev, user: updatedUser }));
+    } catch (error) {
+      console.error('Failed to refresh user:', error);
+    }
+  }, [state.accessToken, state.refreshToken]);
+
   return (
-    <AuthContext.Provider value={{ ...state, signIn, signOut }}>
+    <AuthContext.Provider value={{ ...state, signIn, signOut, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

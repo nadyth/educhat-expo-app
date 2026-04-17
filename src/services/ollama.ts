@@ -1,41 +1,24 @@
 import { Platform } from 'react-native';
 import { OllamaModel, OllamaModelsResponse, GenerateRequest, GenerateChunk } from '../types/ollama';
 import { parseNDJSONStream } from '../utils/streamParser';
-import { OLLAMA_BASE_URL as DEFAULT_BASE_URL } from '../constants/ollama';
-
-const OLLAMA_BASE_URL = process.env.EXPO_PUBLIC_OLLAMA_BASE_URL || DEFAULT_BASE_URL;
-const OLLAMA_API_KEY = process.env.EXPO_PUBLIC_OLLAMA_API_KEY || '';
-
-function getHeaders(): Record<string, string> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-  if (OLLAMA_API_KEY) {
-    headers['Authorization'] = `Bearer ${OLLAMA_API_KEY}`;
-  }
-  return headers;
-}
+import { API_ENDPOINTS } from '../constants/api';
+import { apiGet, getAccessTokenSync, getApiUrl } from './api';
 
 export async function fetchModels(): Promise<OllamaModel[]> {
-  const response = await fetch(`${OLLAMA_BASE_URL}/api/tags`, {
-    method: 'GET',
-    headers: getHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch models: ${response.status} ${response.statusText}`);
-  }
-
-  const data: OllamaModelsResponse = await response.json();
+  const data = await apiGet<OllamaModelsResponse>(API_ENDPOINTS.OLLAMA_MODELS);
   return data.models ?? [];
 }
 
 export async function* generateStream(
   request: GenerateRequest
 ): AsyncGenerator<GenerateChunk> {
-  const url = `${OLLAMA_BASE_URL}/api/generate`;
+  const url = getApiUrl(API_ENDPOINTS.OLLAMA_GENERATE);
+  const token = getAccessTokenSync();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
   const body = JSON.stringify({ ...request, stream: true });
-  const headers = getHeaders();
 
   console.log('Generating stream from URL:', url);
 
@@ -63,7 +46,7 @@ export async function* generateStream(
 
       const xhr = new XMLHttpRequest();
       xhr.open('POST', url);
-      
+
       for (const [key, value] of Object.entries(headers)) {
         xhr.setRequestHeader(key, value);
       }
@@ -73,10 +56,9 @@ export async function* generateStream(
         if (text.length > seenBytes) {
           const newData = text.substring(seenBytes);
           seenBytes = text.length;
-          
+
           const lines = newData.split('\n');
           for (let i = 0; i < lines.length; i++) {
-            // The last item might be a partial line, but in status 3 we check for full JSON later
             if (lines[i].trim()) {
               queue.push(lines[i]);
             }
@@ -89,7 +71,7 @@ export async function* generateStream(
       };
 
       xhr.onprogress = processResponse;
-      
+
       xhr.onreadystatechange = () => {
         if (xhr.readyState === 3 || xhr.readyState === 4) {
           processResponse();
@@ -115,25 +97,22 @@ export async function* generateStream(
         if (queue.length === 0 && !isDone) {
           await new Promise<void>(resolve => { resolveNext = resolve; });
         }
-        
+
         if (error) throw error;
 
         while (queue.length > 0) {
           const line = queue.shift()!;
           buffer += line;
-          
+
           try {
-            // Check if buffer is valid JSON
             const parsed = JSON.parse(buffer);
             yield parsed;
-            buffer = ''; // Reset buffer on success
+            buffer = '';
           } catch (e) {
-            // Buffer is incomplete JSON, keep it and append next line
-            // or if it's multiple JSONs joined, this logic needs adjustment
-            // but Ollama usually sends one JSON per line.
+            // Buffer is incomplete JSON, keep accumulating
           }
         }
-        
+
         if (isDone && queue.length === 0) break;
       }
     })();
