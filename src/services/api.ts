@@ -1,16 +1,16 @@
 import { API_BASE_URL, API_ENDPOINTS } from '../constants/api';
-import { refreshAccessToken, updateStoredAccessToken } from './auth';
+import { refreshAccessToken, updateStoredAccessToken, updateStoredRefreshToken } from './auth';
 
 /** Callback set by AuthContext — called when refresh also fails, triggering sign-out. */
 let onAuthFailure: (() => void) | null = null;
-/** Callback set by AuthContext — called when a token is refreshed to update in-memory state. */
-let onTokenRefreshed: ((newAccessToken: string) => void) | null = null;
+/** Callback set by AuthContext — called when tokens are refreshed to update in-memory state. */
+let onTokenRefreshed: ((newAccessToken: string, newRefreshToken?: string) => void) | null = null;
 
 export function setOnAuthFailure(cb: () => void) {
   onAuthFailure = cb;
 }
 
-export function setOnTokenRefreshed(cb: (newAccessToken: string) => void) {
+export function setOnTokenRefreshed(cb: (newAccessToken: string, newRefreshToken?: string) => void) {
   onTokenRefreshed = cb;
 }
 
@@ -21,6 +21,40 @@ let getRefreshToken: (() => string | null) | null = null;
 export function setTokenGetters(accessGetter: () => string | null, refreshGetter: () => string | null) {
   getAccessToken = accessGetter;
   getRefreshToken = refreshGetter;
+}
+
+/**
+ * Attempt to refresh the access token using the stored refresh token.
+ * Returns the new access token on success, or null if refresh fails
+ * (in which case onAuthFailure is called to sign the user out).
+ */
+export async function refreshAndRetry(): Promise<string | null> {
+  const refreshToken = getRefreshToken?.();
+  if (!refreshToken) {
+    onAuthFailure?.();
+    return null;
+  }
+
+  try {
+    const refreshResp = await refreshAccessToken(refreshToken);
+    const newAccessToken = refreshResp.access_token;
+    const newRefreshToken = refreshResp.refresh_token;
+
+    // Persist the new tokens
+    await updateStoredAccessToken(newAccessToken);
+    if (newRefreshToken) {
+      await updateStoredRefreshToken(newRefreshToken);
+    }
+
+    // Update in-memory state so subsequent requests use the new tokens
+    onTokenRefreshed?.(newAccessToken, newRefreshToken);
+
+    return newAccessToken;
+  } catch {
+    // Refresh failed — sign the user out
+    onAuthFailure?.();
+    return null;
+  }
 }
 
 /**
@@ -46,39 +80,20 @@ export async function apiRequest(
   });
 
   if (response.status === 401 && token) {
-    // Try refreshing the token
-    const refreshToken = getRefreshToken?.();
-    if (!refreshToken) {
-      onAuthFailure?.();
-      return response;
-    }
+    const newAccessToken = await refreshAndRetry();
+    if (!newAccessToken) return response;
 
-    try {
-      const refreshResp = await refreshAccessToken(refreshToken);
-      const newAccessToken = refreshResp.access_token;
+    // Retry the original request with the new token
+    const retryHeaders: Record<string, string> = {
+      ...headers,
+      Authorization: `Bearer ${newAccessToken}`,
+    };
 
-      // Persist the new token
-      await updateStoredAccessToken(newAccessToken);
-
-      // Update in-memory state so subsequent requests use the new token
-      onTokenRefreshed?.(newAccessToken);
-
-      // Retry the original request with the new token
-      const retryHeaders: Record<string, string> = {
-        ...headers,
-        Authorization: `Bearer ${newAccessToken}`,
-      };
-
-      return fetch(`${API_BASE_URL}${path}`, {
-        method,
-        headers: retryHeaders,
-        body: options.body ? JSON.stringify(options.body) : undefined,
-      });
-    } catch {
-      // Refresh failed — sign the user out
-      onAuthFailure?.();
-      return response;
-    }
+    return fetch(`${API_BASE_URL}${path}`, {
+      method,
+      headers: retryHeaders,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
   }
 
   return response;

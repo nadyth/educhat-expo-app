@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, FlatList, TouchableOpacity, StyleSheet, RefreshControl } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, TextInput, FlatList, StyleSheet, RefreshControl } from 'react-native';
+import { TouchableOpacity } from 'react-native-gesture-handler';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Cpu, Search, GraduationCap, Zap, HardDrive, ArrowUpDown } from 'lucide-react-native';
 import { useOllamaModels } from '../../src/hooks/useOllamaModels';
@@ -81,8 +82,10 @@ export default function ModelsScreen() {
     );
   };
 
+  const insets = useSafeAreaInsets();
+
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <View style={styles.container}>
       {/* Search bar */}
       <View style={styles.searchContainer}>
         <Search size={18} color={theme.colors.textSecondary} />
@@ -145,7 +148,7 @@ export default function ModelsScreen() {
           data={filteredModels}
           renderItem={renderModelCard}
           keyExtractor={(item) => item.name}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom }]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -161,7 +164,7 @@ export default function ModelsScreen() {
           }
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 

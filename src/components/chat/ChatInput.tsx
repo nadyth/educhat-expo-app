@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, TextInput, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { View, TextInput, StyleSheet, Platform } from 'react-native';
+import { TouchableOpacity } from 'react-native-gesture-handler';
 import { Send, Square } from 'lucide-react-native';
 import { theme } from '../../constants/theme';
 
@@ -43,6 +44,7 @@ export function ChatInput({ onSend, onStop, isStreaming, disabled }: ChatInputPr
           onPress={isStreaming ? onStop : handleSend}
           disabled={disabled || (!isStreaming && !text.trim())}
           activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           {isStreaming ? (
             <Square size={18} color={theme.colors.textOnPrimary} fill={theme.colors.textOnPrimary} />

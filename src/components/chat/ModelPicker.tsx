@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, FlatList, StyleSheet, Modal } from 'react-native';
+import { View, Text, FlatList, StyleSheet, Modal } from 'react-native';
+import { TouchableOpacity } from 'react-native-gesture-handler';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ChevronDown, X, Cpu } from 'lucide-react-native';
 import { theme } from '../../constants/theme';
@@ -8,7 +9,7 @@ import { formatModelSize } from '../../utils/formatters';
 
 interface ModelPickerProps {
   models: OllamaModel[];
-  currentModel: string;
+  currentModel: string | null;
   onSelect: (model: string) => void;
   visible: boolean;
   onClose: () => void;
@@ -21,7 +22,7 @@ export function ModelPicker({ models, currentModel, onSelect, visible, onClose }
         <View style={styles.sheet}>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>Select Model</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
               <X size={20} color={theme.colors.textSecondary} />
             </TouchableOpacity>
           </View>
@@ -39,6 +40,7 @@ export function ModelPicker({ models, currentModel, onSelect, visible, onClose }
                     onSelect(item.name);
                     onClose();
                   }}
+                  hitSlop={{ top: 4, bottom: 4, left: 0, right: 0 }}
                 >
                   <View style={styles.modelInfo}>
                     <View style={styles.modelNameRow}>
@@ -71,7 +73,7 @@ interface ModelPickerTriggerProps {
 
 export function ModelPickerTrigger({ currentModel, onPress }: ModelPickerTriggerProps) {
   return (
-    <TouchableOpacity style={styles.trigger} onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity style={styles.trigger} onPress={onPress} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}>
       <Cpu size={14} color={theme.colors.primary} />
       <Text style={styles.triggerText} numberOfLines={1}>{currentModel}</Text>
       <ChevronDown size={14} color={theme.colors.primary} />
@@ -172,11 +174,12 @@ const styles = StyleSheet.create({
     gap: 4,
     backgroundColor: theme.colors.surface,
     paddingHorizontal: theme.spacing.sm + 4,
-    paddingVertical: theme.spacing.xs + 2,
+    paddingVertical: theme.spacing.sm,
     borderRadius: theme.borderRadius.full,
     borderWidth: 1,
     borderColor: theme.colors.cardBorder,
     maxWidth: 180,
+    minHeight: 44,
   },
   triggerText: {
     ...theme.typography.caption,

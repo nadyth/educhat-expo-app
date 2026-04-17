@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { User, AuthResponse, RefreshResponse, mapApiUser } from '../types/auth';
 import { API_BASE_URL, API_ENDPOINTS } from '../constants/api';
+import { AuthResponse, RefreshResponse, User, mapApiUser } from '../types/auth';
 
 const ACCESS_TOKEN_KEY = 'educhat_access_token';
 const REFRESH_TOKEN_KEY = 'educhat_refresh_token';
@@ -51,6 +51,21 @@ const LEGACY_AUTH_TOKEN_KEY = 'educhat_auth_token';
 
 export async function clearAuthData(): Promise<void> {
   await AsyncStorage.multiRemove([ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, USER_DATA_KEY, LEGACY_AUTH_TOKEN_KEY]);
+}
+
+/** Call GET /auth/gen-token to get a dev token (development only). */
+export async function generateDevToken(): Promise<AuthResponse> {
+  const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.AUTH_GEN_TOKEN}`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Dev token generation failed: ${response.status} - ${errorText}`);
+  }
+
+  return response.json();
 }
 
 /** Call POST /auth/login with a Google idToken. Returns session tokens + user. */
@@ -105,4 +120,9 @@ export async function fetchCurrentUser(accessToken: string): Promise<User> {
 /** Update the stored access token (used after refresh). */
 export async function updateStoredAccessToken(accessToken: string): Promise<void> {
   await AsyncStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+}
+
+/** Update the stored refresh token (used when server rotates refresh tokens). */
+export async function updateStoredRefreshToken(refreshToken: string): Promise<void> {
+  await AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
 }

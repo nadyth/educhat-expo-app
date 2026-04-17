@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ChatMessage } from '../types/chat';
 import { GenerateChunk } from '../types/ollama';
 import { generateStream } from '../services/ollama';
@@ -6,10 +7,14 @@ import { DEFAULT_MODEL, DEFAULT_SYSTEM_PROMPT } from '../constants/ollama';
 import { generateId } from '../utils/formatters';
 import { EDUCATION_PROMPTS, PromptType } from '../utils/educationPrompts';
 
+const STORAGE_KEY_MODEL = '@educhat_default_model';
+
 interface ChatContextType {
   messages: ChatMessage[];
   isStreaming: boolean;
-  currentModel: string;
+  currentModel: string | null;
+  hasSelectedModel: boolean;
+  isLoadingModel: boolean;
   systemPrompt: string;
   promptType: PromptType;
   error: string | null;
@@ -28,17 +33,37 @@ const ChatContext = createContext<ChatContextType | undefined>(undefined);
 export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [currentModel, setCurrentModel] = useState(DEFAULT_MODEL);
+  const [currentModel, setCurrentModel] = useState<string | null>(null);
+  const [hasSelectedModel, setHasSelectedModel] = useState(false);
+  const [isLoadingModel, setIsLoadingModel] = useState(true);
   const [systemPrompt, setSystemPromptState] = useState(DEFAULT_SYSTEM_PROMPT);
   const [promptType, setPromptType] = useState<PromptType>('default');
   const [error, setError] = useState<string | null>(null);
   const [tokensPerSecond, setTokensPerSecond] = useState<number | null>(null);
   const [totalMessagesSent, setTotalMessagesSent] = useState(0);
-  const [modelsUsed, setModelsUsed] = useState<Set<string>>(new Set([DEFAULT_MODEL]));
+  const [modelsUsed, setModelsUsed] = useState<Set<string>>(new Set());
   const abortRef = useRef<AbortController | null>(null);
 
+  // Load saved model on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const saved = await AsyncStorage.getItem(STORAGE_KEY_MODEL);
+        if (saved) {
+          setCurrentModel(saved);
+          setHasSelectedModel(true);
+          setModelsUsed(new Set([saved]));
+        }
+      } catch {
+        // Ignore storage errors, user will select model
+      } finally {
+        setIsLoadingModel(false);
+      }
+    })();
+  }, []);
+
   const sendMessage = useCallback(async (text: string) => {
-    if (isStreaming || !text.trim()) return;
+    if (isStreaming || !text.trim() || !currentModel) return;
 
     const userMessage: ChatMessage = {
       id: generateId(),
@@ -82,15 +107,25 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       });
 
       let accumulatedText = '';
+      let accumulatedThinking = '';
 
       for await (const chunk of generator as AsyncGenerator<GenerateChunk>) {
         if (abortController.signal.aborted) break;
 
+        if (chunk.thinking) {
+          accumulatedThinking += chunk.thinking;
+          const currentThinking = accumulatedThinking;
+          setMessages(prev =>
+            prev.map(m => (m.id === aiMessageId ? { ...m, thinking: currentThinking } : m))
+          );
+        }
+
         if (chunk.response) {
           accumulatedText += chunk.response;
           const currentText = accumulatedText;
+          const currentThinking = accumulatedThinking;
           setMessages(prev =>
-            prev.map(m => (m.id === aiMessageId ? { ...m, text: currentText } : m))
+            prev.map(m => (m.id === aiMessageId ? { ...m, text: currentText, thinking: currentThinking } : m))
           );
         }
 
@@ -115,7 +150,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
   const setModel = useCallback((model: string) => {
     setCurrentModel(model);
+    setHasSelectedModel(true);
     setModelsUsed(prev => new Set([...prev, model]));
+    AsyncStorage.setItem(STORAGE_KEY_MODEL, model).catch(() => {});
   }, []);
 
   const setSystemPrompt = useCallback((type: PromptType) => {
@@ -141,6 +178,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         messages,
         isStreaming,
         currentModel,
+        hasSelectedModel,
+        isLoadingModel,
         systemPrompt,
         promptType,
         error,

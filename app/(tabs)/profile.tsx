@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { TouchableOpacity } from 'react-native-gesture-handler';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInRight, FadeInDown } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -31,9 +32,11 @@ export default function ProfileScreen() {
     { key: 'coding', label: 'Coding Instructor', icon: '💻' },
   ];
 
+  const insets = useSafeAreaInsets();
+
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+    <View style={styles.container}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom }}>
         {/* Profile Header */}
         <LinearGradient
           colors={[theme.colors.gradientStart, theme.colors.primary, theme.colors.gradientEnd]}
@@ -81,7 +84,7 @@ export default function ProfileScreen() {
               <Zap size={20} color={theme.colors.success} />
             </View>
             <Animated.Text entering={FadeInRight.delay(400).duration(500)} style={styles.statNumber}>
-              {currentModel.split(':')[0]}
+              {currentModel ? currentModel.split(':')[0] : '—'}
             </Animated.Text>
             <Text style={styles.statLabel}>Model</Text>
           </Animated.View>
@@ -147,7 +150,7 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

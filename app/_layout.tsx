@@ -4,6 +4,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider, useAuth } from '../src/contexts/AuthContext';
 import { ChatProvider } from '../src/contexts/ChatContext';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -73,9 +74,11 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 }
 

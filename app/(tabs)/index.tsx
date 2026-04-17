@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, FlatList, StyleSheet, Platform, Keyboard } from 'react-native';
+import { View, FlatList, StyleSheet, Platform, Keyboard, Text } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useChat } from '../../src/contexts/ChatContext';
 import { useOllamaModels } from '../../src/hooks/useOllamaModels';
@@ -18,6 +18,8 @@ export default function ChatScreen() {
     messages,
     isStreaming,
     currentModel,
+    hasSelectedModel,
+    isLoadingModel,
     error,
     tokensPerSecond,
     sendMessage,
@@ -27,6 +29,13 @@ export default function ChatScreen() {
   } = useChat();
   const { models } = useOllamaModels();
   const [showModelPicker, setShowModelPicker] = useState(false);
+
+  // Auto-open model picker if no model selected yet (after storage load completes)
+  useEffect(() => {
+    if (!isLoadingModel && !hasSelectedModel) {
+      setShowModelPicker(true);
+    }
+  }, [isLoadingModel, hasSelectedModel]);
   const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
@@ -52,24 +61,31 @@ export default function ChatScreen() {
     <ChatBubble
       text={item.text}
       isUser={item.isUser}
-      isStreaming={isStreaming && !item.isUser && item === messages[messages.length - 1] && item.text !== ''}
+      isStreaming={isStreaming && !item.isUser && item === messages[messages.length - 1]}
       modelName={item.isUser ? undefined : item.model}
       tokensPerSecond={
         !item.isUser && item === messages[messages.length - 1] && !isStreaming
           ? tokensPerSecond
           : undefined
       }
+      thinking={item.thinking}
     />
   );
 
+  const insets = useSafeAreaInsets();
+
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <View style={styles.container}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior="padding"
         keyboardVerticalOffset={headerHeight}
       >
-        {messages.length === 0 && !isStreaming ? (
+        {isLoadingModel ? null : !hasSelectedModel ? (
+          <View style={styles.noModelContainer}>
+            <Text style={styles.noModelText}>Select a model to start chatting</Text>
+          </View>
+        ) : messages.length === 0 && !isStreaming ? (
           <EmptyState onSuggestionPress={sendMessage} />
         ) : (
           <FlatList
@@ -81,7 +97,7 @@ export default function ChatScreen() {
             contentContainerStyle={styles.messageListContent}
             showsVerticalScrollIndicator={false}
             ListFooterComponent={
-              isStreaming && messages[messages.length - 1]?.text === '' ? (
+              isStreaming && messages[messages.length - 1]?.text === '' && !messages[messages.length - 1]?.thinking ? (
                 <TypingIndicator />
               ) : null
             }
@@ -94,17 +110,26 @@ export default function ChatScreen() {
           </View>
         )}
 
-        <View style={styles.inputArea}>
-          <ModelPickerTrigger
-            currentModel={currentModel}
-            onPress={() => setShowModelPicker(true)}
-          />
-          <ChatInput
-            onSend={sendMessage}
-            onStop={stopGeneration}
-            isStreaming={isStreaming}
-          />
-        </View>
+        {isLoadingModel ? null : !hasSelectedModel ? (
+          <View style={styles.modelRequiredArea}>
+            <ModelPickerTrigger
+              currentModel="Select a model"
+              onPress={() => setShowModelPicker(true)}
+            />
+          </View>
+        ) : (
+          <View style={styles.inputArea}>
+            <ModelPickerTrigger
+              currentModel={currentModel!}
+              onPress={() => setShowModelPicker(true)}
+            />
+            <ChatInput
+              onSend={sendMessage}
+              onStop={stopGeneration}
+              isStreaming={isStreaming}
+            />
+          </View>
+        )}
 
         <ModelPicker
           models={models}
@@ -114,7 +139,7 @@ export default function ChatScreen() {
           onClose={() => setShowModelPicker(false)}
         />
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -136,5 +161,20 @@ const styles = StyleSheet.create({
   },
   inputArea: {
     gap: theme.spacing.xs,
+  },
+  modelRequiredArea: {
+    paddingVertical: theme.spacing.md,
+    alignItems: 'center',
+  },
+  noModelContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.xl,
+  },
+  noModelText: {
+    ...theme.typography.body,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
   },
 });

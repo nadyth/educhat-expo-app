@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { Platform } from 'react-native';
+import { Platform, AppState, type AppStateStatus } from 'react-native';
 import Constants from 'expo-constants';
 import { User, AuthState } from '../types/auth';
 import {
@@ -7,8 +7,11 @@ import {
   loadAuthData,
   clearAuthData,
   loginWithGoogle,
+  generateDevToken,
   fetchCurrentUser,
   updateStoredAccessToken,
+  updateStoredRefreshToken,
+  refreshAccessToken,
 } from '../services/auth';
 import { setOnAuthFailure, setOnTokenRefreshed, setTokenGetters } from '../services/api';
 
@@ -23,6 +26,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || Constants.expoConfig?.extra?.googleWebClientId || '';
 const ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || '';
 const IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '597120914452-2kkuuts4k4330pvm9b2t0vj8ii2qaa59.apps.googleusercontent.com';
+const IS_DEV = process.env.EXPO_PUBLIC_ENV === 'development';
 
 // --- Web: Google Identity Services (popup, no redirect URI needed) ---
 
@@ -140,14 +144,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const handleTokenRefreshed = useCallback((newAccessToken: string) => {
-    setState(prev => ({ ...prev, accessToken: newAccessToken }));
+  const handleTokenRefreshed = useCallback((newAccessToken: string, newRefreshToken?: string) => {
+    setState(prev => ({
+      ...prev,
+      accessToken: newAccessToken,
+      ...(newRefreshToken ? { refreshToken: newRefreshToken } : {}),
+    }));
   }, []);
 
   useEffect(() => {
     setOnAuthFailure(handleAuthFailure);
     setOnTokenRefreshed(handleTokenRefreshed);
   }, [handleAuthFailure, handleTokenRefreshed]);
+
+  // Proactively refresh the access token when the app comes back to the foreground.
+  // This avoids the user seeing a 401 error on their first action after resuming.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState: AppStateStatus) => {
+      if (nextState !== 'active') return;
+      // Only try if we already have a session
+      const currentAccess = accessTokenRef.current;
+      const currentRefresh = refreshTokenRef.current;
+      if (!currentAccess || !currentRefresh) return;
+
+      // Fire-and-forget: if the access token is still valid the refresh
+      // will fail gracefully and we keep the current session. If it's
+      // expired we'll get a fresh one transparently.
+      refreshAccessToken(currentRefresh)
+        .then(async (resp) => {
+          await updateStoredAccessToken(resp.access_token);
+          if (resp.refresh_token) {
+            await updateStoredRefreshToken(resp.refresh_token);
+          }
+          setState(prev => ({
+            ...prev,
+            accessToken: resp.access_token,
+            ...(resp.refresh_token ? { refreshToken: resp.refresh_token } : {}),
+          }));
+        })
+        .catch(() => {
+          // Silently ignore — the reactive 401-refresh path will handle it
+          // if the user actually makes a request.
+        });
+    });
+
+    return () => subscription.remove();
+  }, []);
 
   // Load saved session on mount — only once
   useEffect(() => {
@@ -165,6 +207,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             isAuthenticated: true,
             isLoading: false,
           });
+        } else if (IS_DEV) {
+          // Dev mode: auto-generate a token to bypass Google Sign-In
+          try {
+            const authResponse = await generateDevToken();
+            const user: User = {
+              id: authResponse.user.id,
+              name: authResponse.user.name,
+              email: authResponse.user.email,
+              photo: authResponse.user.picture_url || undefined,
+            };
+            await saveAuthData(authResponse.access_token, authResponse.refresh_token, user);
+            setState({
+              user,
+              accessToken: authResponse.access_token,
+              refreshToken: authResponse.refresh_token,
+              isAuthenticated: true,
+              isLoading: false,
+            });
+          } catch (devError) {
+            console.error('Dev token generation failed:', devError);
+            setState(prev => ({ ...prev, isLoading: false }));
+          }
         } else {
           setState(prev => ({ ...prev, isLoading: false }));
         }

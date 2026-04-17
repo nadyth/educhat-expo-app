@@ -38,6 +38,7 @@ export interface GenerateChunk {
   model: string;
   created_at: string;
   response: string;
+  thinking?: string;
   done: boolean;
   done_reason?: string;
   total_duration?: number;

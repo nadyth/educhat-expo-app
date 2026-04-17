@@ -27,6 +27,7 @@ export interface AuthResponse {
 /** Response from POST /auth/refresh */
 export interface RefreshResponse {
   access_token: string;
+  refresh_token?: string; // Server may rotate refresh tokens
   token_type: string;
   expires_in: number;
 }

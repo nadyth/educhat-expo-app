@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { GraduationCap, User } from 'lucide-react-native';
 import { theme } from '../../constants/theme';
+import { ThinkingSection } from './ThinkingSection';
 
 interface ChatBubbleProps {
   text: string;
@@ -10,9 +11,12 @@ interface ChatBubbleProps {
   isStreaming?: boolean;
   modelName?: string;
   tokensPerSecond?: number | null;
+  thinking?: string;
 }
 
-export function ChatBubble({ text, isUser, isStreaming, modelName, tokensPerSecond }: ChatBubbleProps) {
+export function ChatBubble({ text, isUser, isStreaming, modelName, tokensPerSecond, thinking }: ChatBubbleProps) {
+  const isActivelyThinking = !!(isStreaming && thinking && !text);
+
   return (
     <Animated.View
       entering={FadeInUp.duration(300).springify()}
@@ -31,6 +35,9 @@ export function ChatBubble({ text, isUser, isStreaming, modelName, tokensPerSeco
       >
         {!isUser && modelName && (
           <Text style={styles.modelLabel}>{modelName}</Text>
+        )}
+        {!isUser && thinking && (
+          <ThinkingSection thinking={thinking} isActivelyThinking={isActivelyThinking} />
         )}
         <Text style={[styles.text, isUser ? styles.userText : styles.aiText]}>
           {text}

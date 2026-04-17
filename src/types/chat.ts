@@ -4,6 +4,7 @@ export interface ChatMessage {
   createdAt: Date;
   isUser: boolean;
   model?: string;
+  thinking?: string;
 }
 
 export interface ChatStats {

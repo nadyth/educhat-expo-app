@@ -1,10 +1,14 @@
 import { Tabs, Redirect } from 'expo-router';
+import { Platform, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MessageCircle, Cpu, GraduationCap } from 'lucide-react-native';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { HapticTab } from '../../components/haptic-tab';
 import { theme } from '../../src/constants/theme';
 
 export default function TabLayout() {
   const { isAuthenticated } = useAuth();
+  const insets = useSafeAreaInsets();
 
   if (!isAuthenticated) {
     return <Redirect href="/login" />;
@@ -13,18 +17,25 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
+        tabBarButton: HapticTab,
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.textSecondary,
         tabBarStyle: {
           backgroundColor: theme.colors.surface,
           borderTopColor: theme.colors.cardBorder,
           borderTopWidth: 1,
-          paddingBottom: 4,
-          height: 56,
+          paddingBottom: insets.bottom || 4,
+          ...(Platform.OS === 'android' && {
+            height: 56 + (insets.bottom || 0),
+          }),
         },
         tabBarLabelStyle: {
           ...theme.typography.caption,
           fontWeight: '600',
+        },
+        tabBarIconStyle: {
+          marginTop: 4,
+          marginBottom: 2,
         },
         headerShown: true,
         headerStyle: {
@@ -41,21 +52,21 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Chat',
-          tabBarIcon: ({ color, size }) => <MessageCircle size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <View pointerEvents="none"><MessageCircle size={size} color={color} /></View>,
         }}
       />
       <Tabs.Screen
         name="models"
         options={{
           title: 'Models',
-          tabBarIcon: ({ color, size }) => <Cpu size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <View pointerEvents="none"><Cpu size={size} color={color} /></View>,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color, size }) => <GraduationCap size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <View pointerEvents="none"><GraduationCap size={size} color={color} /></View>,
         }}
       />
     </Tabs>
