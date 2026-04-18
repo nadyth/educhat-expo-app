@@ -22,9 +22,11 @@
 
 | Task | Command |
 |---|---|
-| Generate native project | `npx expo prebuild --clean` |
-| Run release on simulator | `npx expo run:ios --configuration Release` |
-| Run release on physical device | `npx expo run:ios --configuration Release --device` |
+| Generate native project | `npx expo prebuild` |
+| Generate native project (clean) | `npx expo prebuild --clean` |
+| Run release on simulator | `npm run ios:release` |
+| Run release on physical device | `npm run ios:release -- --device` |
+| Run release (full clean rebuild) | `npm run ios:release:clean` |
 | Build archive (CLI) | `xcodebuild archive -workspace EduChatAI.xcworkspace -scheme EduChatAI -configuration Release -archivePath build/EduChatAI.xcarchive -destination 'generic/platform=iOS'` |
 | Upload to App Store | `xcrun altool --upload-app` or Transporter app |
 
@@ -33,6 +35,10 @@
 ## 1. Generate the native iOS project
 
 ```bash
+# Fast (reuses cached prebuild)
+npx expo prebuild
+
+# Full clean rebuild
 npx expo prebuild --clean
 ```
 
@@ -60,7 +66,11 @@ This creates/refreshes the `ios/` directory with the latest native config from `
 ### On a simulator
 
 ```bash
-npx expo run:ios --configuration Release
+# Fast (reuses cached prebuild)
+npm run ios:release
+
+# Full clean rebuild
+npm run ios:release:clean
 ```
 
 ### On a physical device
@@ -68,7 +78,7 @@ npx expo run:ios --configuration Release
 Connect your iPhone via USB, then:
 
 ```bash
-npx expo run:ios --configuration Release --device
+npm run ios:release -- --device
 ```
 
 ---

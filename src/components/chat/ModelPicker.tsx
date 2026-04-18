@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, FlatList, StyleSheet, Modal } from 'react-native';
+import { View, Text, FlatList, StyleSheet, Modal, Pressable } from 'react-native';
 import { TouchableOpacity } from 'react-native-gesture-handler';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ChevronDown, X, Cpu } from 'lucide-react-native';
@@ -18,7 +18,7 @@ interface ModelPickerProps {
 export function ModelPicker({ models, currentModel, onSelect, visible, onClose }: ModelPickerProps) {
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
+      <Pressable style={styles.overlay} onPress={onClose}>
         <View style={styles.sheet}>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>Select Model</Text>
@@ -61,7 +61,7 @@ export function ModelPicker({ models, currentModel, onSelect, visible, onClose }
             contentContainerStyle={styles.list}
           />
         </View>
-      </TouchableOpacity>
+      </Pressable>
     </Modal>
   );
 }

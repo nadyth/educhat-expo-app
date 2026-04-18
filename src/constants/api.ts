@@ -1,5 +1,7 @@
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://educhat.devnadeem.com';
 
+console.log('[ENV]', process.env.EXPO_PUBLIC_ENV, '| API:', process.env.EXPO_PUBLIC_API_BASE_URL);
+
 export const API_ENDPOINTS = {
   AUTH_LOGIN: '/auth/login',
   AUTH_GEN_TOKEN: '/auth/gen-token',

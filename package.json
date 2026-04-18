@@ -10,9 +10,12 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "prebuild": "expo prebuild",
-    "android:release": "expo prebuild --clean && cd android && ./gradlew clean && ./gradlew assembleRelease",
-    "android:bundle": "expo prebuild --clean && cd android && ./gradlew clean && ./gradlew bundleRelease",
-    "android:clean": "cd android && ./gradlew clean"
+    "android:release": "APP_ENV=production expo prebuild && cd android && ./gradlew assembleRelease",
+    "android:release:clean": "APP_ENV=production expo prebuild --clean && cd android && ./gradlew clean && ./gradlew assembleRelease",
+    "android:bundle": "APP_ENV=production expo prebuild && cd android && ./gradlew bundleRelease",
+    "android:bundle:clean": "APP_ENV=production expo prebuild --clean && cd android && ./gradlew clean && ./gradlew bundleRelease",
+    "ios:release": "APP_ENV=production expo prebuild && expo run:ios --configuration Release",
+    "ios:release:clean": "APP_ENV=production expo prebuild --clean && expo run:ios --configuration Release"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

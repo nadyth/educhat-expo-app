@@ -19,13 +19,13 @@
 
 | Task | Command |
 |---|---|
-| Generate native project | `npx expo prebuild --clean` |
-| Run release on connected device | `npx expo prebuild --clean && npx expo run:android --variant release` |
-| Build release APK | `npx expo prebuild --clean && cd android && ./gradlew assembleRelease` |
-| Build release AAB | `npx expo prebuild --clean && cd android && ./gradlew bundleRelease` |
-| Debug build (npm script) | `npm run android` |
-| Release APK (npm script) | `npm run android:release` |
-| Release AAB (npm script) | `npm run android:bundle` |
+| Generate native project | `npx expo prebuild` |
+| Generate native project (clean) | `npx expo prebuild --clean` |
+| Build release APK | `npm run android:release` |
+| Build release APK (clean) | `npm run android:release:clean` |
+| Build release AAB | `npm run android:bundle` |
+| Build release AAB (clean) | `npm run android:bundle:clean` |
+| Debug build | `npm run android` |
 
 ---
 
@@ -96,8 +96,11 @@ EDUCHAT_RELEASE_KEY_PASSWORD=your_key_password
 ## 3. Build & run release on a connected device
 
 ```bash
-npx expo prebuild --clean
-npx expo run:android --variant release
+# Fast (reuses cached prebuild)
+npm run android:release
+
+# Full clean rebuild
+npm run android:release:clean
 ```
 
 ---
@@ -105,9 +108,7 @@ npx expo run:android --variant release
 ## 4. Build a release APK
 
 ```bash
-npx expo prebuild --clean
-cd android
-./gradlew assembleRelease
+npm run android:release
 ```
 
 Output: `android/app/build/outputs/apk/release/app-release.apk`
@@ -117,9 +118,7 @@ Output: `android/app/build/outputs/apk/release/app-release.apk`
 ## 5. Build a release AAB (App Bundle)
 
 ```bash
-npx expo prebuild --clean
-cd android
-./gradlew bundleRelease
+npm run android:bundle
 ```
 
 Output: `android/app/build/outputs/bundle/release/app-release.aab`
@@ -176,18 +175,20 @@ npm install
 
 ## Appendix: NPM scripts
 
-These are already configured in `package.json`:
+These are configured in `package.json`. All release scripts set `APP_ENV=production` to load `.env.production`.
 
 ```json
 {
   "android": "expo run:android",
-  "android:release": "expo prebuild --clean && cd android && ./gradlew clean && ./gradlew assembleRelease",
-  "android:bundle": "expo prebuild --clean && cd android && ./gradlew clean && ./gradlew bundleRelease",
-  "android:clean": "cd android && ./gradlew clean"
+  "android:release": "APP_ENV=production expo prebuild && cd android && ./gradlew assembleRelease",
+  "android:release:clean": "APP_ENV=production expo prebuild --clean && cd android && ./gradlew clean && ./gradlew assembleRelease",
+  "android:bundle": "APP_ENV=production expo prebuild && cd android && ./gradlew bundleRelease",
+  "android:bundle:clean": "APP_ENV=production expo prebuild --clean && cd android && ./gradlew clean && ./gradlew bundleRelease"
 }
 ```
 
-- `npm run android` — debug build on connected device
-- `npm run android:release` — release APK
-- `npm run android:bundle` — release AAB (for Play Store)
-- `npm run android:clean` — clean Android build artifacts
+- `npm run android` — debug build (uses `.env`)
+- `npm run android:release` — release APK (uses `.env.production`)
+- `npm run android:release:clean` — release APK with full cache clean
+- `npm run android:bundle` — release AAB for Play Store (uses `.env.production`)
+- `npm run android:bundle:clean` — release AAB with full cache clean
