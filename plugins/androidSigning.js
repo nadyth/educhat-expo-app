@@ -6,7 +6,7 @@ const {
 /**
  * Expo config plugin that configures Android release signing.
  *
- * Expects these env vars (set them in .env or CI):
+ * Reads passwords from env vars (set in .env / .env.production / CI):
  *   EDUCHAT_RELEASE_STORE_PASSWORD
  *   EDUCHAT_RELEASE_KEY_PASSWORD
  *
@@ -23,15 +23,13 @@ const SIGNING_CONFIG = {
 function withAndroidReleaseSigning(config) {
   // 1. Inject signing config into build.gradle
   config = withAppBuildGradle(config, (cfg) => {
-    const src = cfg.modResults.contents;
+    let src = cfg.modResults.contents;
 
-    // Only inject if not already present
-    if (src.includes('EDUCHAT_RELEASE_STORE_FILE')) {
-      return cfg;
-    }
+    // Remove any existing release signingConfig (from previous plugin runs or manual edits)
+    src = src.replace(/release\s*\{[^}]*signingConfig signingConfigs\.release[^}]*\}/gs, '');
 
-    // Replace the debug-only signingConfigs block with debug + release
-    cfg.modResults.contents = src.replace(
+    // Add release signingConfig block after the debug block
+    src = src.replace(
       /signingConfigs\s*\{\s*debug\s*\{[^}]*\}\s*\}/s,
       `signingConfigs {
         debug {
@@ -41,21 +39,36 @@ function withAndroidReleaseSigning(config) {
             keyPassword 'android'
         }
         release {
-            storeFile file('${SIGNING_CONFIG.storeFile}')
-            storePassword '${SIGNING_CONFIG.storePassword}'
-            keyAlias '${SIGNING_CONFIG.keyAlias}'
-            keyPassword '${SIGNING_CONFIG.keyPassword}'
+            if (project.hasProperty('EDUCHAT_RELEASE_STORE_FILE')) {
+                storeFile file(EDUCHAT_RELEASE_STORE_FILE)
+                storePassword EDUCHAT_RELEASE_STORE_PASSWORD
+                keyAlias EDUCHAT_RELEASE_KEY_ALIAS
+                keyPassword EDUCHAT_RELEASE_KEY_PASSWORD
+            }
         }
     }`
     );
 
-    // Point release buildType to release signing instead of debug
-    cfg.modResults.contents = cfg.modResults.contents.replace(
-      /release\s*\{\s*signingConfig signingConfigs\.debug/,
-      `release {
-            signingConfig signingConfigs.release`
+    // Point release buildType to release signing
+    src = src.replace(
+      /signingConfig signingConfigs\.debug/,
+      'signingConfig signingConfigs.release'
     );
 
+    // If release block was removed, re-add it with release signing
+    if (!src.includes('signingConfig signingConfigs.release')) {
+      src = src.replace(
+        /buildTypes\s*\{\s*debug\s*\{[^}]*\}\s*release\s*\{/,
+        `buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            signingConfig signingConfigs.release`
+      );
+    }
+
+    cfg.modResults.contents = src;
     return cfg;
   });
 
@@ -69,7 +82,6 @@ function withAndroidReleaseSigning(config) {
     ];
 
     for (const { key, value } of props) {
-      // Remove existing if present
       cfg.modResults = cfg.modResults.filter(
         (p) => p.type !== 'property' || p.key !== key
       );
