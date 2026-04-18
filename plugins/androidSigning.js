@@ -21,17 +21,14 @@ const SIGNING_CONFIG = {
 };
 
 function withAndroidReleaseSigning(config) {
-  // 1. Inject signing config into build.gradle
   config = withAppBuildGradle(config, (cfg) => {
     let src = cfg.modResults.contents;
 
-    // Remove any existing release signingConfig (from previous plugin runs or manual edits)
-    src = src.replace(/release\s*\{[^}]*signingConfig signingConfigs\.release[^}]*\}/gs, '');
-
-    // Add release signingConfig block after the debug block
-    src = src.replace(
-      /signingConfigs\s*\{\s*debug\s*\{[^}]*\}\s*\}/s,
-      `signingConfigs {
+    // 1. Add release signingConfig block (if not already present)
+    if (!src.includes('signingConfigs.release') && !src.includes('signingConfigs {') && !src.includes('EDUCHAT_RELEASE_STORE_FILE')) {
+      src = src.replace(
+        /signingConfigs\s*\{\s*debug\s*\{[^}]*\}\s*\}/s,
+        `signingConfigs {
         debug {
             storeFile file('debug.keystore')
             storePassword 'android'
@@ -47,32 +44,21 @@ function withAndroidReleaseSigning(config) {
             }
         }
     }`
-    );
-
-    // Point release buildType to release signing
-    src = src.replace(
-      /signingConfig signingConfigs\.debug/,
-      'signingConfig signingConfigs.release'
-    );
-
-    // If release block was removed, re-add it with release signing
-    if (!src.includes('signingConfig signingConfigs.release')) {
-      src = src.replace(
-        /buildTypes\s*\{\s*debug\s*\{[^}]*\}\s*release\s*\{/,
-        `buildTypes {
-        debug {
-            signingConfig signingConfigs.debug
-        }
-        release {
-            signingConfig signingConfigs.release`
       );
     }
+
+    // 2. Point release buildType to release signing — match inside the release { ... } block
+    //    We need to be specific: only replace within the release buildTypes block
+    src = src.replace(
+      /buildTypes\s*\{[\s\S]*?release\s*\{[\s\S]*?signingConfig signingConfigs\.debug/,
+      (match) => match.replace('signingConfig signingConfigs.debug', 'signingConfig signingConfigs.release')
+    );
 
     cfg.modResults.contents = src;
     return cfg;
   });
 
-  // 2. Add gradle properties
+  // 3. Add gradle properties
   config = withGradleProperties(config, (cfg) => {
     const props = [
       { key: 'EDUCHAT_RELEASE_STORE_FILE', value: SIGNING_CONFIG.storeFile },
