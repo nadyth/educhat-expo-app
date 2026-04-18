@@ -24,8 +24,8 @@ function withAndroidReleaseSigning(config) {
   config = withAppBuildGradle(config, (cfg) => {
     let src = cfg.modResults.contents;
 
-    // 1. Add release signingConfig block (if not already present)
-    if (!src.includes('signingConfigs.release') && !src.includes('signingConfigs {') && !src.includes('EDUCHAT_RELEASE_STORE_FILE')) {
+    // 1. Add release signingConfig block if not already present
+    if (!src.includes('EDUCHAT_RELEASE_STORE_FILE')) {
       src = src.replace(
         /signingConfigs\s*\{\s*debug\s*\{[^}]*\}\s*\}/s,
         `signingConfigs {
@@ -47,12 +47,15 @@ function withAndroidReleaseSigning(config) {
       );
     }
 
-    // 2. Point release buildType to release signing — match inside the release { ... } block
-    //    We need to be specific: only replace within the release buildTypes block
-    src = src.replace(
-      /buildTypes\s*\{[\s\S]*?release\s*\{[\s\S]*?signingConfig signingConfigs\.debug/,
-      (match) => match.replace('signingConfig signingConfigs.debug', 'signingConfig signingConfigs.release')
-    );
+    // 2. Point release buildType to release signing
+    //    Only change the one inside the release { } block, not debug
+    const buildTypesMatch = src.match(/buildTypes\s*\{[\s\S]*?\brelease\s*\{[\s\S]*?signingConfig signingConfigs\.debug/);
+    if (buildTypesMatch) {
+      src = src.replace(
+        buildTypesMatch[0],
+        buildTypesMatch[0].replace('signingConfig signingConfigs.debug', 'signingConfig signingConfigs.release')
+      );
+    }
 
     cfg.modResults.contents = src;
     return cfg;
