@@ -70,10 +70,10 @@ function withAndroidReleaseSigning(config) {
 
     for (const { key, value } of props) {
       // Remove existing if present
-      cfg.modResults.results = cfg.modResults.results.filter(
+      cfg.modResults = cfg.modResults.filter(
         (p) => p.type !== 'property' || p.key !== key
       );
-      cfg.modResults.results.push({ type: 'property', key, value });
+      cfg.modResults.push({ type: 'property', key, value });
     }
 
     return cfg;
