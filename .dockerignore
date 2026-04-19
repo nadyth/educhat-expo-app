@@ -1,0 +1,9 @@
+node_modules
+android
+ios
+.env
+.env.production
+*.keystore
+.git
+__pycache__
+.DS_Store
