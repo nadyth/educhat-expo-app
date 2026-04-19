@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, FlatList, StyleSheet, Modal, Pressable } from 'react-native';
-import { TouchableOpacity } from 'react-native-gesture-handler';
+import { View, Text, FlatList, StyleSheet, Modal, Pressable, TouchableOpacity, TextInput } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { ChevronDown, X, Cpu } from 'lucide-react-native';
+import { ChevronDown, X, Cpu, Search, Check } from 'lucide-react-native';
 import { theme } from '../../constants/theme';
 import { OllamaModel } from '../../types/ollama';
 import { formatModelSize } from '../../utils/formatters';
@@ -16,9 +15,18 @@ interface ModelPickerProps {
 }
 
 export function ModelPicker({ models, currentModel, onSelect, visible, onClose }: ModelPickerProps) {
+  const [search, setSearch] = useState('');
+
+  const filtered = search
+    ? models.filter((m) => m.name.toLowerCase().includes(search.toLowerCase()) || m.details.family.toLowerCase().includes(search.toLowerCase()))
+    : models;
+
+  const modelSize = (item: OllamaModel) => item.size > 0 ? formatModelSize(item.size) : 'API';
+
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={styles.overlay} onPress={onClose}>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose} statusBarTranslucent>
+      <View style={styles.overlay}>
+        <Pressable style={styles.backdrop} onPress={onClose} />
         <View style={styles.sheet}>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>Select Model</Text>
@@ -26,42 +34,52 @@ export function ModelPicker({ models, currentModel, onSelect, visible, onClose }
               <X size={20} color={theme.colors.textSecondary} />
             </TouchableOpacity>
           </View>
-          <FlatList
-            data={models}
-            keyExtractor={(item) => item.name}
-            renderItem={({ item, index }) => (
-              <Animated.View entering={FadeInDown.delay(index * 50).duration(300)}>
-                <TouchableOpacity
-                  style={[
-                    styles.modelItem,
-                    item.name === currentModel && styles.modelItemSelected,
-                  ]}
-                  onPress={() => {
-                    onSelect(item.name);
-                    onClose();
-                  }}
-                  hitSlop={{ top: 4, bottom: 4, left: 0, right: 0 }}
-                >
-                  <View style={styles.modelInfo}>
-                    <View style={styles.modelNameRow}>
-                      <Cpu size={16} color={theme.colors.primary} />
-                      <Text style={styles.modelName}>{item.name}</Text>
-                    </View>
-                    <View style={styles.badgeRow}>
-                      <Text style={styles.badge}>{item.details.family}</Text>
-                      <Text style={styles.badge}>{item.details.parameter_size}</Text>
-                      <Text style={styles.badge}>{item.details.quantization_level}</Text>
-                      <Text style={styles.sizeBadge}>{formatModelSize(item.size)}</Text>
-                    </View>
-                  </View>
-                  {item.name === currentModel && <View style={styles.checkmark} />}
-                </TouchableOpacity>
-              </Animated.View>
+          <View style={styles.searchRow}>
+            <Search size={16} color={theme.colors.textSecondary} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search models..."
+              placeholderTextColor={theme.colors.textSecondary}
+              value={search}
+              onChangeText={setSearch}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {search.length > 0 && (
+              <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <X size={16} color={theme.colors.textSecondary} />
+              </TouchableOpacity>
             )}
+          </View>
+          <FlatList
+            data={filtered}
+            keyExtractor={(item) => item.name}
+            nestedScrollEnabled={true}
+            renderItem={({ item, index }) => {
+              const selected = item.name === currentModel;
+              return (
+                <Animated.View entering={FadeInDown.delay(index * 50).duration(300)}>
+                  <TouchableOpacity
+                    style={[styles.modelItem, selected && styles.modelItemSelected]}
+                    onPress={() => { onSelect(item.name); onClose(); }}
+                    hitSlop={{ top: 4, bottom: 4, left: 0, right: 0 }}
+                  >
+                    <Cpu size={14} color={selected ? theme.colors.textOnPrimary : theme.colors.primary} />
+                    <Text style={[styles.modelName, selected && styles.modelNameSelected]} numberOfLines={1}>
+                      {item.name}
+                    </Text>
+                    <Text style={[styles.modelSize, selected && styles.modelSizeSelected]}>
+                      {modelSize(item)}
+                    </Text>
+                    {selected && <Check size={16} color={theme.colors.textOnPrimary} />}
+                  </TouchableOpacity>
+                </Animated.View>
+              );
+            }}
             contentContainerStyle={styles.list}
           />
         </View>
-      </Pressable>
+      </View>
     </Modal>
   );
 }
@@ -87,6 +105,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
+  backdrop: {
+    flex: 1,
+  },
   sheet: {
     backgroundColor: theme.colors.surface,
     borderTopLeftRadius: theme.borderRadius.xl,
@@ -111,62 +132,52 @@ const styles = StyleSheet.create({
   list: {
     paddingBottom: theme.spacing.xl,
   },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: theme.spacing.md,
+    marginVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.sm,
+    height: 40,
+    backgroundColor: theme.colors.surfaceAlt,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.cardBorder,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: theme.spacing.xs,
+    ...theme.typography.body,
+    color: theme.colors.text,
+  },
   modelItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: theme.spacing.md,
+    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm + 2,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.surfaceAlt,
   },
   modelItemSelected: {
-    backgroundColor: theme.colors.primary + '10',
-  },
-  modelInfo: {
-    flex: 1,
-  },
-  modelNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    marginBottom: 4,
+    backgroundColor: theme.colors.primary,
   },
   modelName: {
     ...theme.typography.body,
     fontWeight: '600',
     color: theme.colors.text,
+    flex: 1,
   },
-  badgeRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
+  modelNameSelected: {
+    color: theme.colors.textOnPrimary,
   },
-  badge: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: theme.colors.primary,
-    backgroundColor: theme.colors.primary + '15',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: theme.borderRadius.sm,
-    overflow: 'hidden',
+  modelSize: {
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary,
   },
-  sizeBadge: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: theme.colors.accent,
-    backgroundColor: theme.colors.accent + '20',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: theme.borderRadius.sm,
-    overflow: 'hidden',
-  },
-  checkmark: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: theme.colors.primary,
-    marginLeft: theme.spacing.sm,
+  modelSizeSelected: {
+    color: theme.colors.textOnPrimary,
+    opacity: 0.8,
   },
   trigger: {
     flexDirection: 'row',
