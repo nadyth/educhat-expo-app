@@ -48,14 +48,13 @@ function withAndroidReleaseSigning(config) {
     }
 
     // 2. Point release buildType to release signing
-    //    Only change the one inside the release { } block, not debug
-    const buildTypesMatch = src.match(/buildTypes\s*\{[\s\S]*?\brelease\s*\{[\s\S]*?signingConfig signingConfigs\.debug/);
-    if (buildTypesMatch) {
-      src = src.replace(
-        buildTypesMatch[0],
-        buildTypesMatch[0].replace('signingConfig signingConfigs.debug', 'signingConfig signingConfigs.release')
-      );
-    }
+    //    Capture-group approach: captures everything from "buildTypes {"
+    //    through "release {" up to (but not including) the signingConfig,
+    //    then replaces ONLY that specific signingConfig reference.
+    src = src.replace(
+      /(\bbuildTypes\s*\{[\s\S]*?\brelease\s*\{[\s\S]*?)signingConfig\s+signingConfigs\.debug/,
+      '$1signingConfig signingConfigs.release'
+    );
 
     cfg.modResults.contents = src;
     return cfg;
