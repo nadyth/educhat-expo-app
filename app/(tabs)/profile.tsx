@@ -7,8 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import {
   LogOut,
   MessageCircle,
-  Cpu,
-  Zap,
+  FileText,
   BookOpen,
   GraduationCap,
   ChevronRight,
@@ -17,20 +16,11 @@ import {
 import { useAuth } from '../../src/contexts/AuthContext';
 import { Image } from 'react-native';
 import { useChat } from '../../src/contexts/ChatContext';
-import { EDUCATION_PROMPTS, PromptType } from '../../src/utils/educationPrompts';
 import { theme } from '../../src/constants/theme';
 
 export default function ProfileScreen() {
   const { user, signOut, refreshUser } = useAuth();
-  const { currentModel, promptType, setSystemPrompt, totalMessagesSent, modelsUsed, clearChat } = useChat();
-
-  const promptOptions: { key: PromptType; label: string; icon: string }[] = [
-    { key: 'default', label: 'General Tutor', icon: '🎓' },
-    { key: 'math', label: 'Math Tutor', icon: '📐' },
-    { key: 'science', label: 'Science Tutor', icon: '🔬' },
-    { key: 'writing', label: 'Writing Coach', icon: '✍️' },
-    { key: 'coding', label: 'Coding Instructor', icon: '💻' },
-  ];
+  const { selectedFile, messages, clearChat } = useChat();
 
   const insets = useSafeAreaInsets();
 
@@ -64,61 +54,30 @@ export default function ProfileScreen() {
               <MessageCircle size={20} color={theme.colors.primary} />
             </View>
             <Animated.Text entering={FadeInRight.delay(200).duration(500)} style={styles.statNumber}>
-              {totalMessagesSent}
+              {messages.length}
             </Animated.Text>
             <Text style={styles.statLabel}>Messages</Text>
           </Animated.View>
 
           <Animated.View entering={FadeInRight.delay(200).duration(500)} style={styles.statCard}>
             <View style={[styles.statIcon, { backgroundColor: theme.colors.accent + '20' }]}>
-              <Cpu size={20} color={theme.colors.accent} />
+              <FileText size={20} color={theme.colors.accent} />
             </View>
             <Animated.Text entering={FadeInRight.delay(300).duration(500)} style={styles.statNumber}>
-              {modelsUsed.size}
+              {selectedFile ? '1' : '0'}
             </Animated.Text>
-            <Text style={styles.statLabel}>Models Used</Text>
+            <Text style={styles.statLabel}>Doc Active</Text>
           </Animated.View>
 
           <Animated.View entering={FadeInRight.delay(300).duration(500)} style={styles.statCard}>
             <View style={[styles.statIcon, { backgroundColor: theme.colors.success + '15' }]}>
-              <Zap size={20} color={theme.colors.success} />
+              <BookOpen size={20} color={theme.colors.success} />
             </View>
-            <Animated.Text entering={FadeInRight.delay(400).duration(500)} style={styles.statNumber}>
-              {currentModel ? currentModel.split(':')[0] : '—'}
+            <Animated.Text entering={FadeInRight.delay(400).duration(500)} style={styles.statNumber} numberOfLines={1}>
+              {selectedFile ? selectedFile.original_name.replace(/\.pdf$/i, '') : '—'}
             </Animated.Text>
-            <Text style={styles.statLabel}>Model</Text>
+            <Text style={styles.statLabel}>Document</Text>
           </Animated.View>
-        </View>
-
-        {/* System Prompt Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            <BookOpen size={16} color={theme.colors.primary} /> Study Mode
-          </Text>
-          <View style={styles.promptGrid}>
-            {promptOptions.map((opt, index) => (
-              <Animated.View key={opt.key} entering={FadeInRight.delay(index * 80).duration(400)}>
-                <TouchableOpacity
-                  style={[
-                    styles.promptCard,
-                    promptType === opt.key && styles.promptCardActive,
-                  ]}
-                  onPress={() => setSystemPrompt(opt.key)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.promptEmoji}>{opt.icon}</Text>
-                  <Text
-                    style={[
-                      styles.promptLabel,
-                      promptType === opt.key && styles.promptLabelActive,
-                    ]}
-                  >
-                    {opt.label}
-                  </Text>
-                </TouchableOpacity>
-              </Animated.View>
-            ))}
-          </View>
         </View>
 
         {/* Settings Section */}
@@ -239,37 +198,6 @@ const styles = StyleSheet.create({
     ...theme.typography.h3,
     color: theme.colors.text,
     marginBottom: theme.spacing.md,
-  },
-  promptGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.sm,
-  },
-  promptCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.surface,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm + 2,
-    borderRadius: theme.borderRadius.full,
-    borderWidth: 1.5,
-    borderColor: theme.colors.cardBorder,
-    gap: theme.spacing.xs,
-  },
-  promptCardActive: {
-    borderColor: theme.colors.primary,
-    backgroundColor: theme.colors.primary + '10',
-  },
-  promptEmoji: {
-    fontSize: 16,
-  },
-  promptLabel: {
-    ...theme.typography.caption,
-    fontWeight: '600',
-    color: theme.colors.textSecondary,
-  },
-  promptLabelActive: {
-    color: theme.colors.primary,
   },
   settingRow: {
     flexDirection: 'row',

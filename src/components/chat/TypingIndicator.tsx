@@ -1,9 +1,13 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import { theme } from '../../constants/theme';
 
-export function TypingIndicator() {
+interface TypingIndicatorProps {
+  label?: string;
+}
+
+export function TypingIndicator({ label }: TypingIndicatorProps) {
   const dot1 = useSharedValue(0);
   const dot2 = useSharedValue(0);
   const dot3 = useSharedValue(0);
@@ -39,6 +43,7 @@ export function TypingIndicator() {
       <Animated.View style={[styles.dot, animatedDot1]} />
       <Animated.View style={[styles.dot, animatedDot2]} />
       <Animated.View style={[styles.dot, animatedDot3]} />
+      {label ? <Text style={styles.label}>{label}</Text> : null}
     </View>
   );
 }
@@ -56,5 +61,11 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: theme.colors.primary,
+  },
+  label: {
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary,
+    fontStyle: 'italic',
+    marginLeft: 4,
   },
 });

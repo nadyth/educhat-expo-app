@@ -1,22 +1,21 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
-import { GraduationCap, User } from 'lucide-react-native';
+import { GraduationCap, User, BookOpen } from 'lucide-react-native';
 import { theme } from '../../constants/theme';
-import { ThinkingSection } from './ThinkingSection';
+import type { SourcePage } from '../../types/chat';
+import { RichText } from './RichText';
 
 interface ChatBubbleProps {
   text: string;
   isUser: boolean;
   isStreaming?: boolean;
-  modelName?: string;
-  tokensPerSecond?: number | null;
-  thinking?: string;
+  fileName?: string;
+  stepLabel?: string;
+  sources?: SourcePage[];
 }
 
-export function ChatBubble({ text, isUser, isStreaming, modelName, tokensPerSecond, thinking }: ChatBubbleProps) {
-  const isActivelyThinking = !!(isStreaming && thinking && !text);
-
+export function ChatBubble({ text, isUser, isStreaming, fileName, stepLabel, sources }: ChatBubbleProps) {
   return (
     <Animated.View
       entering={FadeInUp.duration(300).springify()}
@@ -33,18 +32,35 @@ export function ChatBubble({ text, isUser, isStreaming, modelName, tokensPerSeco
           isUser ? styles.userBubble : styles.aiBubble,
         ]}
       >
-        {!isUser && modelName && (
-          <Text style={styles.modelLabel}>{modelName}</Text>
+        {!isUser && fileName && (
+          <View style={styles.fileLabelRow}>
+            <BookOpen size={12} color={theme.colors.primary} />
+            <Text style={styles.fileLabel}>{fileName}</Text>
+          </View>
         )}
-        {!isUser && thinking && (
-          <ThinkingSection thinking={thinking} isActivelyThinking={isActivelyThinking} />
+        {!isUser && stepLabel && (
+          <View style={styles.stepRow}>
+            <View style={styles.stepDot} />
+            <Text style={styles.stepText}>{stepLabel}</Text>
+          </View>
         )}
-        <Text style={[styles.text, isUser ? styles.userText : styles.aiText]}>
-          {text}
-          {isStreaming && <Text style={styles.cursor}>|</Text>}
-        </Text>
-        {!isUser && tokensPerSecond && !isStreaming && (
-          <Text style={styles.speed}>{tokensPerSecond.toFixed(1)} t/s</Text>
+        {isUser ? (
+          <Text style={styles.userText}>
+            {text}
+          </Text>
+        ) : (
+          <RichText
+            text={isStreaming ? text + '|' : text}
+            style={styles.aiText}
+          />
+        )}
+        {!isUser && sources && sources.length > 0 && !isStreaming && (
+          <View style={styles.sourcesRow}>
+            <BookOpen size={12} color={theme.colors.textSecondary} />
+            <Text style={styles.sourcesText}>
+              Sources: {sources.map(s => `p.${s.page_label}`).join(', ')}
+            </Text>
+          </View>
         )}
       </View>
       {isUser && (
@@ -100,30 +116,54 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.accentLight + '40',
   },
-  text: {
-    ...theme.typography.body,
-    lineHeight: 22,
-  },
   userText: {
+    ...theme.typography.body,
     color: theme.colors.textOnPrimary,
   },
   aiText: {
+    ...theme.typography.body,
     color: theme.colors.aiBubbleText,
   },
-  cursor: {
-    color: theme.colors.primary,
-    fontWeight: '700',
+  fileLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 2,
   },
-  modelLabel: {
+  fileLabel: {
     ...theme.typography.caption,
     color: theme.colors.primary,
     fontWeight: '600',
-    marginBottom: 2,
   },
-  speed: {
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  stepDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: theme.colors.primary,
+  },
+  stepText: {
     ...theme.typography.caption,
     color: theme.colors.textSecondary,
-    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  sourcesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 6,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.cardBorder,
+  },
+  sourcesText: {
+    ...theme.typography.caption,
+    color: theme.colors.textSecondary,
     fontStyle: 'italic',
   },
 });

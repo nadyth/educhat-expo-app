@@ -1,7 +1,7 @@
 import { Tabs, Redirect } from 'expo-router';
 import { Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MessageCircle, Cpu, GraduationCap } from 'lucide-react-native';
+import { MessageCircle, FileText, GraduationCap } from 'lucide-react-native';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { HapticTab } from '../../components/haptic-tab';
 import { theme } from '../../src/constants/theme';
@@ -56,10 +56,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="models"
+        name="docs"
         options={{
-          title: 'Models',
-          tabBarIcon: ({ color, size }) => <View pointerEvents="none"><Cpu size={size} color={color} /></View>,
+          title: 'Docs',
+          tabBarIcon: ({ color, size }) => <View pointerEvents="none"><FileText size={size} color={color} /></View>,
         }}
       />
       <Tabs.Screen

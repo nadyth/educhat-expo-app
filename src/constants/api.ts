@@ -7,4 +7,12 @@ export const API_ENDPOINTS = {
   USERS_ME: '/users/me',
   OLLAMA_MODELS: '/ollama/models',
   OLLAMA_GENERATE: '/ollama/generate',
+  FILES_UPLOAD: '/files/upload',
+  FILES_LIST: '/files',
+  FILE_STATUS: (fileId: string) => `/files/${fileId}/status`,
+  FILE_PROCESS: (fileId: string) => `/files/${fileId}/process`,
+  FILE_RENAME: (fileId: string) => `/files/${fileId}/rename`,
+  FILE_DELETE: (fileId: string) => `/files/${fileId}`,
+  FILE_URL: (fileId: string) => `/files/${fileId}/url`,
+  FILE_EXPLAIN: (fileId: string) => `/files/${fileId}/explain`,
 } as const;

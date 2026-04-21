@@ -4,42 +4,58 @@ import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { useChat } from '../../src/contexts/ChatContext';
-import { useOllamaModels } from '../../src/hooks/useOllamaModels';
 import { ChatBubble } from '../../src/components/chat/ChatBubble';
 import { ChatInput } from '../../src/components/chat/ChatInput';
 import { TypingIndicator } from '../../src/components/chat/TypingIndicator';
-import { ModelPicker, ModelPickerTrigger } from '../../src/components/chat/ModelPicker';
+import { FilePicker, FilePickerTrigger } from '../../src/components/chat/FilePicker';
 import { EmptyState } from '../../src/components/shared/EmptyState';
 import { theme } from '../../src/constants/theme';
+import type { FileOut } from '../../src/services/files';
 
 export default function ChatScreen() {
   const headerHeight = useHeaderHeight();
   const {
     messages,
     isStreaming,
-    currentModel,
-    hasSelectedModel,
-    isLoadingModel,
+    selectedFile,
+    hasSelectedFile,
+    isLoadingFile,
     error,
-    tokensPerSecond,
+    currentStep,
     sendMessage,
-    setModel,
+    setFile,
     clearChat,
     stopGeneration,
+    loadAvailableFiles,
   } = useChat();
-  const { models } = useOllamaModels();
-  const [showModelPicker, setShowModelPicker] = useState(false);
+  const [showFilePicker, setShowFilePicker] = useState(false);
+  const [availableFiles, setAvailableFiles] = useState<FileOut[]>([]);
+  const [isLoadingFiles, setIsLoadingFiles] = useState(false);
 
-  // Auto-open model picker if no model selected yet (after storage load completes)
+  // Auto-open file picker if no file selected yet (after storage load completes)
   useEffect(() => {
-    if (!isLoadingModel && !hasSelectedModel) {
-      setShowModelPicker(true);
+    if (!isLoadingFile && !hasSelectedFile) {
+      setShowFilePicker(true);
     }
-  }, [isLoadingModel, hasSelectedModel]);
+  }, [isLoadingFile, hasSelectedFile]);
+
+  // Load files when picker is opened
+  const handleOpenFilePicker = async () => {
+    setShowFilePicker(true);
+    setIsLoadingFiles(true);
+    try {
+      const files = await loadAvailableFiles();
+      setAvailableFiles(files);
+    } catch {
+      // Error handled silently, empty list shown
+    } finally {
+      setIsLoadingFiles(false);
+    }
+  };
+
   const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
-    // Scroll to bottom on new messages
     if (messages.length > 0) {
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     }
@@ -62,17 +78,11 @@ export default function ChatScreen() {
       text={item.text}
       isUser={item.isUser}
       isStreaming={isStreaming && !item.isUser && item === messages[messages.length - 1]}
-      modelName={item.isUser ? undefined : item.model}
-      tokensPerSecond={
-        !item.isUser && item === messages[messages.length - 1] && !isStreaming
-          ? tokensPerSecond
-          : undefined
-      }
-      thinking={item.thinking}
+      fileName={item.isUser ? undefined : item.fileName}
+      stepLabel={item.stepLabel}
+      sources={item.sources}
     />
   );
-
-  const insets = useSafeAreaInsets();
 
   return (
     <View style={styles.container}>
@@ -81,9 +91,9 @@ export default function ChatScreen() {
         behavior="padding"
         keyboardVerticalOffset={headerHeight}
       >
-        {isLoadingModel ? null : !hasSelectedModel ? (
-          <View style={styles.noModelContainer}>
-            <Text style={styles.noModelText}>Select a model to start chatting</Text>
+        {isLoadingFile ? null : !hasSelectedFile ? (
+          <View style={styles.noFileContainer}>
+            <Text style={styles.noFileText}>Select a document to start chatting</Text>
           </View>
         ) : messages.length === 0 && !isStreaming ? (
           <EmptyState onSuggestionPress={sendMessage} />
@@ -97,31 +107,29 @@ export default function ChatScreen() {
             contentContainerStyle={styles.messageListContent}
             showsVerticalScrollIndicator={false}
             ListFooterComponent={
-              isStreaming && messages[messages.length - 1]?.text === '' && !messages[messages.length - 1]?.thinking ? (
-                <TypingIndicator />
+              isStreaming && messages[messages.length - 1]?.text === '' ? (
+                <TypingIndicator label={currentStep || undefined} />
               ) : null
             }
           />
         )}
 
         {error && (
-          <View style={styles.errorBar}>
-            {/* Error displayed in input area */}
-          </View>
+          <View style={styles.errorBar} />
         )}
 
-        {isLoadingModel ? null : !hasSelectedModel ? (
-          <View style={styles.modelRequiredArea}>
-            <ModelPickerTrigger
-              currentModel="Select a model"
-              onPress={() => setShowModelPicker(true)}
+        {isLoadingFile ? null : !hasSelectedFile ? (
+          <View style={styles.fileRequiredArea}>
+            <FilePickerTrigger
+              currentFile={null}
+              onPress={handleOpenFilePicker}
             />
           </View>
         ) : (
           <View style={styles.inputArea}>
-            <ModelPickerTrigger
-              currentModel={currentModel!}
-              onPress={() => setShowModelPicker(true)}
+            <FilePickerTrigger
+              currentFile={selectedFile}
+              onPress={handleOpenFilePicker}
             />
             <ChatInput
               onSend={sendMessage}
@@ -131,12 +139,13 @@ export default function ChatScreen() {
           </View>
         )}
 
-        <ModelPicker
-          models={models}
-          currentModel={currentModel}
-          onSelect={setModel}
-          visible={showModelPicker}
-          onClose={() => setShowModelPicker(false)}
+        <FilePicker
+          files={availableFiles}
+          currentFile={selectedFile}
+          onSelect={setFile}
+          visible={showFilePicker}
+          onClose={() => setShowFilePicker(false)}
+          isLoading={isLoadingFiles}
         />
       </KeyboardAvoidingView>
     </View>
@@ -162,17 +171,17 @@ const styles = StyleSheet.create({
   inputArea: {
     gap: theme.spacing.xs,
   },
-  modelRequiredArea: {
+  fileRequiredArea: {
     paddingVertical: theme.spacing.md,
     alignItems: 'center',
   },
-  noModelContainer: {
+  noFileContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: theme.spacing.xl,
   },
-  noModelText: {
+  noFileText: {
     ...theme.typography.body,
     color: theme.colors.textSecondary,
     textAlign: 'center',

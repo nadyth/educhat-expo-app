@@ -1,31 +1,25 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ChatMessage } from '../types/chat';
-import { GenerateChunk } from '../types/ollama';
-import { generateStream } from '../services/ollama';
-import { DEFAULT_MODEL, DEFAULT_SYSTEM_PROMPT } from '../constants/ollama';
+import { ChatMessage, SourcePage } from '../types/chat';
+import { explainStream } from '../services/explain';
+import { listFiles, type FileOut } from '../services/files';
 import { generateId } from '../utils/formatters';
-import { EDUCATION_PROMPTS, PromptType } from '../utils/educationPrompts';
 
-const STORAGE_KEY_MODEL = '@educhat_default_model';
+const STORAGE_KEY_FILE = '@educhat_selected_file';
 
 interface ChatContextType {
   messages: ChatMessage[];
   isStreaming: boolean;
-  currentModel: string | null;
-  hasSelectedModel: boolean;
-  isLoadingModel: boolean;
-  systemPrompt: string;
-  promptType: PromptType;
+  selectedFile: FileOut | null;
+  hasSelectedFile: boolean;
+  isLoadingFile: boolean;
+  currentStep: string | null;
   error: string | null;
-  tokensPerSecond: number | null;
-  totalMessagesSent: number;
-  modelsUsed: Set<string>;
   sendMessage: (text: string) => Promise<void>;
-  setModel: (model: string) => void;
-  setSystemPrompt: (prompt: PromptType) => void;
+  setFile: (file: FileOut) => void;
   clearChat: () => void;
   stopGeneration: () => void;
+  loadAvailableFiles: () => Promise<FileOut[]>;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -33,37 +27,41 @@ const ChatContext = createContext<ChatContextType | undefined>(undefined);
 export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [currentModel, setCurrentModel] = useState<string | null>(null);
-  const [hasSelectedModel, setHasSelectedModel] = useState(false);
-  const [isLoadingModel, setIsLoadingModel] = useState(true);
-  const [systemPrompt, setSystemPromptState] = useState(DEFAULT_SYSTEM_PROMPT);
-  const [promptType, setPromptType] = useState<PromptType>('default');
+  const [selectedFile, setSelectedFile] = useState<FileOut | null>(null);
+  const [hasSelectedFile, setHasSelectedFile] = useState(false);
+  const [isLoadingFile, setIsLoadingFile] = useState(true);
+  const [currentStep, setCurrentStep] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tokensPerSecond, setTokensPerSecond] = useState<number | null>(null);
-  const [totalMessagesSent, setTotalMessagesSent] = useState(0);
-  const [modelsUsed, setModelsUsed] = useState<Set<string>>(new Set());
   const abortRef = useRef<AbortController | null>(null);
 
-  // Load saved model on mount
+  // Load saved file selection on mount
   useEffect(() => {
     (async () => {
       try {
-        const saved = await AsyncStorage.getItem(STORAGE_KEY_MODEL);
+        const saved = await AsyncStorage.getItem(STORAGE_KEY_FILE);
         if (saved) {
-          setCurrentModel(saved);
-          setHasSelectedModel(true);
-          setModelsUsed(new Set([saved]));
+          const savedFile: FileOut = JSON.parse(saved);
+          // Verify file still exists by loading files list
+          const files = await listFiles();
+          const match = files.find(f => f.id === savedFile.id && f.processing_status === 'completed');
+          if (match) {
+            setSelectedFile(match);
+            setHasSelectedFile(true);
+          } else {
+            // File no longer exists or isn't processed, clear saved selection
+            await AsyncStorage.removeItem(STORAGE_KEY_FILE);
+          }
         }
       } catch {
-        // Ignore storage errors, user will select model
+        // Ignore storage errors, user will select file
       } finally {
-        setIsLoadingModel(false);
+        setIsLoadingFile(false);
       }
     })();
   }, []);
 
   const sendMessage = useCallback(async (text: string) => {
-    if (isStreaming || !text.trim() || !currentModel) return;
+    if (isStreaming || !text.trim() || !selectedFile) return;
 
     const userMessage: ChatMessage = {
       id: generateId(),
@@ -78,92 +76,88 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       text: '',
       createdAt: new Date(),
       isUser: false,
-      model: currentModel,
+      fileName: selectedFile.original_name,
+      stepLabel: '',
     };
 
     setMessages(prev => [...prev, userMessage, aiMessage]);
     setIsStreaming(true);
     setError(null);
-    setTokensPerSecond(null);
-    setTotalMessagesSent(prev => prev + 1);
-
-    // Build prompt from conversation history
-    const conversationHistory = messages
-      .map(m => `${m.isUser ? 'Student' : 'Assistant'}: ${m.text}`)
-      .join('\n');
-    const prompt = conversationHistory
-      ? `${conversationHistory}\nStudent: ${text.trim()}\nAssistant:`
-      : text.trim();
+    setCurrentStep('');
 
     const abortController = new AbortController();
     abortRef.current = abortController;
 
     try {
-      const generator = generateStream({
-        model: currentModel,
-        prompt,
-        stream: true,
-        system: systemPrompt,
-      });
+      const generator = explainStream(selectedFile.id, text.trim());
 
       let accumulatedText = '';
-      let accumulatedThinking = '';
+      let currentSources: SourcePage[] | undefined;
+      let currentStepLabel = '';
 
-      for await (const chunk of generator as AsyncGenerator<GenerateChunk>) {
+      for await (const event of generator) {
         if (abortController.signal.aborted) break;
 
-        if (chunk.thinking) {
-          accumulatedThinking += chunk.thinking;
-          const currentThinking = accumulatedThinking;
-          setMessages(prev =>
-            prev.map(m => (m.id === aiMessageId ? { ...m, thinking: currentThinking } : m))
-          );
-        }
+        switch (event.type) {
+          case 'step':
+            currentStepLabel = event.label;
+            setCurrentStep(event.label);
+            setMessages(prev =>
+              prev.map(m => (m.id === aiMessageId ? { ...m, stepLabel: event.label } : m))
+            );
+            break;
 
-        if (chunk.response) {
-          accumulatedText += chunk.response;
-          const currentText = accumulatedText;
-          const currentThinking = accumulatedThinking;
-          setMessages(prev =>
-            prev.map(m => (m.id === aiMessageId ? { ...m, text: currentText, thinking: currentThinking } : m))
-          );
-        }
+          case 'sources':
+            currentSources = event.pages;
+            setMessages(prev =>
+              prev.map(m => (m.id === aiMessageId ? { ...m, sources: event.pages } : m))
+            );
+            break;
 
-        if (chunk.done) {
-          if (chunk.eval_count && chunk.eval_duration) {
-            const tps = chunk.eval_count / (chunk.eval_duration / 1e9);
-            setTokensPerSecond(tps);
-          }
+          case 'token':
+            accumulatedText += event.text;
+            const textSnapshot = accumulatedText;
+            const sourcesSnapshot = currentSources;
+            const stepSnapshot = currentStepLabel;
+            setMessages(prev =>
+              prev.map(m =>
+                m.id === aiMessageId
+                  ? { ...m, text: textSnapshot, sources: sourcesSnapshot, stepLabel: stepSnapshot }
+                  : m
+              )
+            );
+            break;
+
+          case 'done':
+            // Clear step label on completion
+            setCurrentStep(null);
+            setMessages(prev =>
+              prev.map(m => (m.id === aiMessageId ? { ...m, stepLabel: undefined } : m))
+            );
+            break;
         }
       }
     } catch (err: any) {
       if (err.name !== 'AbortError') {
         setError(err.message || 'Failed to get response');
-        // Remove empty AI message on error
         setMessages(prev => prev.filter(m => m.id !== aiMessageId || m.text !== ''));
       }
     } finally {
       setIsStreaming(false);
+      setCurrentStep(null);
       abortRef.current = null;
     }
-  }, [isStreaming, currentModel, systemPrompt, messages]);
+  }, [isStreaming, selectedFile]);
 
-  const setModel = useCallback((model: string) => {
-    setCurrentModel(model);
-    setHasSelectedModel(true);
-    setModelsUsed(prev => new Set([...prev, model]));
-    AsyncStorage.setItem(STORAGE_KEY_MODEL, model).catch(() => {});
-  }, []);
-
-  const setSystemPrompt = useCallback((type: PromptType) => {
-    setPromptType(type);
-    setSystemPromptState(EDUCATION_PROMPTS[type]);
+  const setFile = useCallback((file: FileOut) => {
+    setSelectedFile(file);
+    setHasSelectedFile(true);
+    AsyncStorage.setItem(STORAGE_KEY_FILE, JSON.stringify(file)).catch(() => {});
   }, []);
 
   const clearChat = useCallback(() => {
     setMessages([]);
     setError(null);
-    setTokensPerSecond(null);
   }, []);
 
   const stopGeneration = useCallback(() => {
@@ -172,25 +166,27 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const loadAvailableFiles = useCallback(async (): Promise<FileOut[]> => {
+    const files = await listFiles();
+    // Only return files that have been processed
+    return files.filter(f => f.processing_status === 'completed');
+  }, []);
+
   return (
     <ChatContext.Provider
       value={{
         messages,
         isStreaming,
-        currentModel,
-        hasSelectedModel,
-        isLoadingModel,
-        systemPrompt,
-        promptType,
+        selectedFile,
+        hasSelectedFile,
+        isLoadingFile,
+        currentStep,
         error,
-        tokensPerSecond,
-        totalMessagesSent,
-        modelsUsed,
         sendMessage,
-        setModel,
-        setSystemPrompt,
+        setFile,
         clearChat,
         stopGeneration,
+        loadAvailableFiles,
       }}
     >
       {children}
